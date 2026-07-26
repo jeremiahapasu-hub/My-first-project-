@@ -51,3 +51,4 @@ Thumbs.db
 
 # Generated demo snapshot — rebuild with `npm run demo`
 /demo.html
+/webapp.html

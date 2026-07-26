@@ -8,13 +8,18 @@ narrative findings, then exports the lot to CSV, Excel or PDF.
 
 ![Dashboard](docs/images/dashboard.png)
 
-**[▶ Open the live demo snapshot](https://claude.ai/code/artifact/2ccf7aef-5fa5-40b5-9b5f-2b7cfec561f6)**
+**[▶ Open the browser edition](https://claude.ai/code/artifact/26932f70-59a3-4a57-bc6d-13385cf950b2)**  ·  [static snapshot](https://claude.ai/code/artifact/2ccf7aef-5fa5-40b5-9b5f-2b7cfec561f6)
 
-A browsable snapshot of the dashboard rendered from a seeded run — every figure,
-chart and finding on it is genuine computed output, not mock data. It is a static
-page, so sign-in, filtering, import and export are not interactive there; those
-need the app running. Regenerate it any time with `npm run demo` (see
-[Static demo snapshot](#static-demo-snapshot)).
+The **browser edition** is the analysis engine running with no server at all:
+load your own export and get the full dashboard, filters, findings and CSV
+download, computed on your device. Nothing is uploaded. It has no accounts and no
+saved history — those need the full app.
+
+The **static snapshot** is a frozen render of a seeded run, for a quick look
+without loading anything.
+
+Build either yourself with `npm run webapp` or `npm run demo` (see
+[Browser edition](#browser-edition)).
 
 ---
 
@@ -158,6 +163,7 @@ Full instructions, including the production path, are in
 | `npm run typecheck`  | `tsc --noEmit`                                  |
 | `npm run samples`    | Regenerate `samples/` (deterministic)           |
 | `npm run demo`       | Build `demo.html` from a running instance       |
+| `npm run webapp`     | Build `webapp.html`, the serverless browser edition |
 | `npm run db:migrate` | Create and apply a migration                    |
 | `npm run db:deploy`  | Apply migrations without prompting (production) |
 | `npm run db:seed`    | Seed demo users and import the sample dataset   |
@@ -196,14 +202,36 @@ the seed instead of the two drifting apart.
 
 ---
 
-## Static demo snapshot
+## Browser edition
 
-The app needs a Node server and PostgreSQL, so it cannot be hosted as a static
-page. `scripts/build-demo.mjs` bridges that: it pulls the four analytics
-endpoints from a running instance and bakes the results into a single
-self-contained HTML file with hand-written SVG charts.
+The full app needs a Node server and PostgreSQL. Two static builds exist for
+cases where that is not available.
+
+### `npm run webapp` — the working browser edition
+
+Everything in `src/lib/analysis/` and `src/lib/parsers/` is pure computation with
+no I/O, so it runs unchanged in a browser. `web/` holds a port of it plus a UI
+with hand-written SVG charts; `npm run webapp` inlines the lot into a single
+`webapp.html`.
+
+Open that file — from disk, a USB stick, or any static host — and it will parse a
+signal or chat export, compute the same statistics as the server, filter them, and
+download a CSV. The file never leaves the device; there is no upload and no
+network call. What it does not have is accounts, saved history, or the Excel and
+PDF exporters, which depend on server-side libraries.
+
+The numbers are verified against the running app: the same sample data yields
+53.6% / -645.10 through both paths.
+
+### `npm run demo` — the static snapshot
+
+`scripts/build-demo.mjs` pulls the four analytics endpoints from a running
+instance and bakes the results into a single self-contained HTML file. It is a
+frozen render — nothing on it is interactive.
 
 ```bash
+npm run webapp   # writes webapp.html — needs nothing running
+
 npm run dev      # in one terminal
 npm run demo     # in another — writes demo.html
 ```
