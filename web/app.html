@@ -1,0 +1,853 @@
+<title>Pocket Signal Lab — browser edition</title>
+<style>
+  /*
+   * Browser edition.
+   *
+   * Same palette and layout language as the Next.js app — the tokens are lifted
+   * verbatim so the two read as one product. Deliberately single-theme dark:
+   * this is a monitoring surface built around luminous marks on a dark ground.
+   */
+  :root {
+    --abyss:#070b14; --void:#0a0f1c; --panel:#111827; --panel-2:#161f31;
+    --line:#1f2a3d; --line-soft:#18212f;
+    --ink:#e8edf6; --ink-dim:#9aa8c0; --ink-faint:#64748b;
+    --accent:#2dd4a7; --accent-dim:#1e9e8a;
+    --win:#2dd4a7; --loss:#f0556b; --draw:#7c8db5; --pending:#e0a33e;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; background:var(--abyss); color:var(--ink); line-height:1.5;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    -webkit-font-smoothing:antialiased; font-variant-numeric: tabular-nums;
+  }
+  .wrap { max-width:1180px; margin:0 auto; padding:22px 16px 64px; }
+
+  header.masthead { display:flex; align-items:center; gap:11px; margin-bottom:18px; }
+  .mark { width:34px; height:34px; border-radius:9px; display:grid; place-items:center;
+    background:color-mix(in oklab, var(--accent) 15%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 30%, transparent); }
+  .masthead h1 { margin:0; font-size:17px; letter-spacing:-.01em; }
+  .masthead p { margin:1px 0 0; font-size:12px; color:var(--ink-faint); }
+
+  .eyebrow { font-size:10.5px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-faint); }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  .panel > header { padding:13px 17px; border-bottom:1px solid var(--line-soft); }
+  .panel h2 { margin:0; font-size:13.5px; font-weight:600; }
+  .panel header p { margin:2px 0 0; font-size:11.5px; color:var(--ink-faint); }
+  .panel .body { padding:15px 11px 11px; }
+  .grid { display:grid; gap:18px; margin-bottom:18px; }
+  @media (min-width:900px){ .grid.two { grid-template-columns:1fr 1fr; } }
+
+  .good{color:var(--win)} .bad{color:var(--loss)} .warn{color:var(--pending)}
+  .muted{color:var(--ink-faint)} .info{color:var(--ink-dim)}
+
+  /* ---- import ---- */
+  .intro { border:1px solid color-mix(in oklab, var(--accent) 26%, transparent);
+    background:color-mix(in oklab, var(--accent) 6%, transparent);
+    border-radius:12px; padding:15px 17px; margin-bottom:18px; }
+  .intro h2 { margin:0 0 5px; font-size:14px; color:var(--accent); }
+  .intro p { margin:0 0 8px; font-size:12.5px; color:var(--ink-dim); }
+  .intro p:last-child { margin-bottom:0; }
+
+  .drop { display:flex; flex-direction:column; align-items:center; gap:6px; text-align:center;
+    border:1px dashed var(--line); border-radius:12px; padding:26px 18px; cursor:pointer;
+    background:color-mix(in oklab, var(--panel-2) 55%, transparent); transition:border-color .15s, background .15s; }
+  .drop:hover, .drop.over { border-color:var(--accent); background:color-mix(in oklab, var(--accent) 8%, transparent); }
+  .drop strong { font-size:13.5px; font-weight:500; }
+  .drop span { font-size:11.5px; color:var(--ink-faint); }
+
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  button, .btn {
+    font:inherit; font-size:12.5px; font-weight:600; cursor:pointer;
+    border-radius:8px; padding:8px 13px; border:1px solid var(--line);
+    background:var(--panel-2); color:var(--ink-dim); transition:.15s;
+  }
+  button:hover, .btn:hover { color:var(--ink); border-color:var(--ink-faint); }
+  button.primary { background:var(--accent-dim); border-color:var(--accent-dim); color:#04120e; }
+  button.primary:hover { background:var(--accent); border-color:var(--accent); }
+  :focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:3px; }
+
+  select, input[type=date] {
+    font:inherit; font-size:12px; background:var(--void); color:var(--ink);
+    border:1px solid var(--line); border-radius:8px; padding:6px 9px;
+  }
+  label.field { display:flex; flex-direction:column; gap:4px; }
+
+  textarea { width:100%; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:11.5px;
+    background:var(--void); color:var(--ink); border:1px solid var(--line);
+    border-radius:8px; padding:9px 11px; resize:vertical; }
+
+  /* ---- tiles ---- */
+  .tiles { display:grid; gap:11px; margin-bottom:18px;
+    grid-template-columns:repeat(auto-fit,minmax(148px,1fr)); }
+  .tile { background:var(--panel); border:1px solid var(--line); border-radius:12px;
+    padding:12px 14px; display:flex; flex-direction:column; gap:2px; }
+  .tile-v { font-size:24px; font-weight:600; letter-spacing:-.02em; }
+  .tile-h { font-size:11.5px; color:var(--ink-faint); }
+
+  /* ---- charts ---- */
+  .scroll { overflow-x:auto; }
+  svg.chart { display:block; width:100%; min-width:440px; height:auto; }
+  .tick { fill:var(--ink-faint); font-size:10.5px; }
+  .cat  { fill:var(--ink-dim); font-size:11px; }
+  .val  { fill:var(--ink); font-size:10.5px; font-weight:600; }
+
+  ul.ranks { list-style:none; margin:0; padding:4px 17px 15px; display:grid; gap:12px; }
+  .rank-top { display:flex; justify-content:space-between; gap:10px; font-size:12.5px; margin-bottom:5px; }
+  .rank-bot { display:flex; justify-content:space-between; font-size:11px; color:var(--ink-faint); margin-top:5px; }
+  .meter { height:6px; border-radius:99px; background:var(--line-soft); overflow:hidden; }
+  .meter.sm { height:4px; width:76px; }
+  .meter i { display:block; height:100%; border-radius:99px; background:var(--accent-dim); }
+  .meter i.bad { background:var(--loss); } .meter i.good { background:var(--win); }
+
+  ul.findings { list-style:none; margin:0; padding:0; }
+  .finding { padding:14px 17px; border-bottom:1px solid var(--line-soft); border-left:2px solid var(--line); }
+  .finding:last-child { border-bottom:0; }
+  .finding.sev-good{border-left-color:var(--win)} .finding.sev-warn{border-left-color:var(--pending)}
+  .finding.sev-bad{border-left-color:var(--loss)}
+  .finding-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:5px; }
+  .finding h3 { margin:0; font-size:12.5px; font-weight:500; }
+  .finding p { margin:0 0 8px; font-size:11.5px; color:var(--ink-dim); }
+  .conf { display:flex; align-items:center; gap:8px; }
+  .conf-n { font-size:10.5px; color:var(--ink-faint); }
+  .pill { font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:.05em;
+    padding:2px 6px; border-radius:5px;
+    background:color-mix(in oklab, currentColor 14%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, currentColor 26%, transparent); }
+
+  ul.plain { list-style:none; margin:0; padding:6px 17px 15px; display:grid; gap:9px; font-size:11.5px; color:var(--ink-dim); }
+  ul.plain li { display:flex; gap:8px; }
+  ul.plain li::before { content:""; flex:none; width:4px; height:4px; border-radius:99px; background:var(--accent); margin-top:7px; }
+
+  table { width:100%; border-collapse:collapse; font-size:11.5px; min-width:620px; }
+  th { text-align:left; font-size:9.5px; text-transform:uppercase; letter-spacing:.06em;
+       color:var(--ink-faint); padding:8px 11px; border-bottom:1px solid var(--line-soft); font-weight:600; }
+  td { padding:7px 11px; border-bottom:1px solid var(--line-soft); }
+  tr:last-child td { border-bottom:0; }
+  .tag { display:inline-block; font-size:9.5px; font-weight:700; padding:1px 5px; border-radius:4px;
+    background:color-mix(in oklab, currentColor 13%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, currentColor 25%, transparent); }
+
+  .heat { padding:4px 17px 16px; min-width:600px; }
+  .heat-row { display:flex; align-items:center; gap:3px; margin-bottom:3px; }
+  .heat-day { width:29px; flex:none; font-size:10px; color:var(--ink-faint); }
+  .heat-hour { flex:1; text-align:center; font-size:9px; color:var(--ink-faint); }
+  .heat-cell { flex:1; height:18px; border-radius:3px; border:1px solid var(--line-soft); }
+  .legend { display:flex; flex-wrap:wrap; gap:13px; padding:5px 17px 16px; font-size:10.5px; color:var(--ink-faint); align-items:center; }
+  .swatch { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:5px; vertical-align:-1px; }
+
+  .errbox { border:1px solid color-mix(in oklab, var(--loss) 32%, transparent);
+    background:color-mix(in oklab, var(--loss) 9%, transparent);
+    border-radius:9px; padding:11px 13px; font-size:11.5px; color:var(--ink-dim); margin-top:12px; }
+  .errbox b { color:var(--loss); }
+  .errlist { margin:7px 0 0; padding:0; list-style:none; max-height:150px; overflow-y:auto; display:grid; gap:4px; }
+  .errlist li { font-family:ui-monospace,Menlo,monospace; font-size:10.5px; background:var(--void); padding:4px 7px; border-radius:5px; }
+
+  .hidden { display:none !important; }
+  footer { margin-top:30px; border-top:1px solid var(--line); padding-top:16px; font-size:11px; color:var(--ink-faint); }
+  footer p { margin:0 0 8px; }
+  @media (prefers-reduced-motion:reduce){ *{animation:none!important;transition:none!important} }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <span class="mark">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#2dd4a7" stroke-width="2.2">
+        <path d="M3 16.5 8.5 11l3.5 3.5L21 6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </span>
+    <div>
+      <h1>Pocket Signal Lab</h1>
+      <p>Browser edition — your file never leaves this device</p>
+    </div>
+  </header>
+
+  <div class="intro">
+    <h2>Load a signal export to analyse it</h2>
+    <p>
+      Everything runs inside this page. Nothing is uploaded, no account is needed, and closing
+      the tab discards it. Drop a CSV, JSON or plain-text export below — column names are matched
+      loosely, so most formats work as-is.
+    </p>
+    <p class="muted">
+      This is the analysis half of the full application, running without a server. It reads
+      history and computes statistics; it does not connect to any broker and cannot place trades.
+    </p>
+  </div>
+
+  <section class="panel" style="margin-bottom:18px">
+    <header>
+      <h2>Import</h2>
+      <p>Signal history, or a chat transcript</p>
+    </header>
+    <div class="body">
+      <label class="drop" id="drop">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="var(--ink-faint)" stroke-width="1.6">
+          <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15" stroke-linecap="round"/>
+        </svg>
+        <strong id="dropLabel">Choose a file, or drop one here</strong>
+        <span>.csv · .json · .txt — signals or chat, detected automatically</span>
+        <input type="file" id="file" accept=".csv,.tsv,.json,.txt,.log" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none">
+      </label>
+
+      <div class="row" style="margin-top:12px">
+        <button class="primary" id="loadSample">Try it with sample data</button>
+        <button id="pasteToggle">Paste text instead</button>
+        <button id="reset" class="hidden">Clear</button>
+      </div>
+
+      <div id="pasteBox" class="hidden" style="margin-top:12px">
+        <textarea id="paste" rows="5" placeholder="EUR/USD OTC  BUY  M5  2026-07-14 09:15  WIN
+GBP/JPY  SELL  M1  2026-07-14 09:22  LOSS"></textarea>
+        <div class="row" style="margin-top:8px"><button class="primary" id="parsePaste">Analyse</button></div>
+      </div>
+
+      <div id="importReport"></div>
+    </div>
+  </section>
+
+  <main id="results" class="hidden"></main>
+
+  <footer>
+    <p><strong>Not financial advice.</strong> This analyses historical records you provide. It is not a
+    recommendation to trade, not a forecast, and past patterns have no obligation to continue.
+    Binary options carry a substantial risk of losing your capital.</p>
+    <p>The sample data is synthetic — generated by a seeded random number generator to exercise the
+    charts. It is not market history.</p>
+    <p>Full version (accounts, saved history, Excel/PDF export) runs as a Next.js app with PostgreSQL.</p>
+  </footer>
+</div>
+
+<script>
+"use strict";
+/* =========================================================================
+ * Analysis core — ported from the application's src/lib/, which is
+ * deliberately pure (no I/O), so it runs unchanged in a browser.
+ * ========================================================================= */
+
+// ---- CSV -----------------------------------------------------------------
+/** RFC 4180 parser: handles quoted fields, escaped quotes and embedded newlines. */
+function parseCSV(text) {
+  const rows = [];
+  let row = [], field = "", inQuotes = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else field += c;
+    } else if (c === '"') inQuotes = true;
+    else if (c === "," || c === ";" || c === "\t") { row.push(field); field = ""; }
+    else if (c === "\n") { row.push(field); rows.push(row); row = []; field = ""; }
+    else if (c !== "\r") field += c;
+  }
+  if (field !== "" || row.length) { row.push(field); rows.push(row); }
+
+  if (!rows.length) return [];
+  const header = rows[0].map(h => h.trim());
+  return rows.slice(1)
+    .filter(r => r.some(v => v.trim() !== ""))
+    .map(r => Object.fromEntries(header.map((h, i) => [h, (r[i] ?? "").trim()])));
+}
+
+const normKey = k => k.toLowerCase().replace(/[\s_\-.]/g, "");
+
+/** Finds a value by trying several header spellings, ignoring case and separators. */
+function pick(row, candidates) {
+  const map = new Map(Object.entries(row).map(([k, v]) => [normKey(k), v]));
+  for (const c of candidates) {
+    const v = map.get(normKey(c));
+    if (v !== undefined && v !== null && String(v).trim() !== "") return String(v).trim();
+  }
+  return undefined;
+}
+
+// ---- scalars -------------------------------------------------------------
+/** ISO, unix s/ms, and day-first DD/MM/YYYY — what these exports actually emit. */
+function parseDate(input) {
+  if (!input) return null;
+  const v = String(input).trim();
+  if (!v) return null;
+  if (/^\d{10}$/.test(v)) return new Date(+v * 1000);
+  if (/^\d{13}$/.test(v)) return new Date(+v);
+
+  let m = /^(\d{1,2})[/.\-](\d{1,2})[/.\-](\d{2,4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/.exec(v);
+  if (m) {
+    const y = m[3].length === 2 ? 2000 + +m[3] : +m[3];
+    const d = new Date(Date.UTC(y, m[2] - 1, +m[1], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0)));
+    return isNaN(d) ? null : d;
+  }
+  m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(v);
+  // No timezone means UTC, rather than letting the viewer's zone shift every row.
+  if (m) return new Date(Date.UTC(+m[1], m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)));
+
+  const d = new Date(v);
+  return isNaN(d) ? null : d;
+}
+
+const UNIT = { s: 1, m: 60, h: 3600, d: 86400 };
+
+/** M1, 5m, 300, 00:05:00, 30 sec — all resolve to seconds. */
+function parseTimeframe(input) {
+  if (!input) return null;
+  const v = String(input).trim().toLowerCase();
+  if (!v) return null;
+
+  let m = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/.exec(v);
+  if (m) return m[3] === undefined ? +m[1] * 60 + +m[2] : +m[1] * 3600 + +m[2] * 60 + +m[3];
+  m = /^([smhd])\s*(\d+)$/.exec(v);
+  if (m) return +m[2] * UNIT[m[1]];
+  m = /^(\d+(?:\.\d+)?)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes|h|hr|hrs|hour|hours|d|day|days)?$/.exec(v);
+  if (m) return Math.round(+m[1] * (m[2] ? UNIT[m[2][0]] : 1));
+  return null;
+}
+
+function parseNumber(input) {
+  if (input === undefined || input === null) return null;
+  const c = String(input).replace(/[^0-9.\-+]/g, "");
+  if (!c || c === "-" || c === "+") return null;
+  const n = Number(c);
+  return isFinite(n) ? n : null;
+}
+
+// ---- assets --------------------------------------------------------------
+const CURRENCIES = new Set(["EUR","USD","GBP","JPY","AUD","NZD","CAD","CHF","SEK","NOK","TRY","ZAR","MXN","SGD","HKD","CNH","BTC","ETH","LTC","XRP","SOL","ADA","DOGE","XAU","XAG","WTI"]);
+const STANDALONE = new Set(["NAS100","SPX500","US30","GER40","UK100","JPN225","AUS200","FRA40"]);
+const ALIASES = { bitcoin:"BTC/USD", btc:"BTC/USD", ethereum:"ETH/USD", eth:"ETH/USD", cable:"GBP/USD",
+  fiber:"EUR/USD", gold:"XAU/USD", xau:"XAU/USD", silver:"XAG/USD", oil:"WTI/USD", crude:"WTI/USD",
+  nasdaq:"NAS100", ndx:"NAS100", sp500:"SPX500", spx:"SPX500", dax:"GER40", dow:"US30" };
+const OTC = /\s*[-(]?\s*otc\s*\)?/i;
+
+/** OTC pricing is broker-synthesised, so the suffix stays part of the symbol. */
+function canonicalAsset(raw) {
+  if (!raw) return null;
+  const isOtc = OTC.test(raw);
+  const cleaned = String(raw).replace(OTC, "").trim();
+  const up = cleaned.toUpperCase().replace(/[^A-Z0-9/]/g, "");
+  const tag = s => (isOtc ? s + " OTC" : s);
+
+  const alias = ALIASES[cleaned.toLowerCase().replace(/[^a-z0-9]/g, "")];
+  if (alias) return tag(alias);
+  if (STANDALONE.has(up)) return tag(up);
+  if (up.includes("/")) {
+    const [b, q] = up.split("/");
+    return CURRENCIES.has(b) && CURRENCIES.has(q) ? tag(b + "/" + q) : null;
+  }
+  if (up.length === 6) {
+    const b = up.slice(0, 3), q = up.slice(3);
+    if (CURRENCIES.has(b) && CURRENCIES.has(q)) return tag(b + "/" + q);
+  }
+  return null;
+}
+
+function detectAssets(text) {
+  const found = new Set();
+  for (const m of text.matchAll(/\b([A-Za-z]{3})\s?[/\-_]\s?([A-Za-z]{3})\b(\s*\(?\s*otc\s*\)?)?/gi)) {
+    const s = canonicalAsset(m[1] + "/" + m[2] + (m[3] ? " OTC" : "")); if (s) found.add(s);
+  }
+  for (const m of text.matchAll(/\b([A-Za-z]{6}|[A-Z]{2,3}\d{2,3})\b(\s*\(?\s*otc\s*\)?)?/g)) {
+    const s = canonicalAsset(m[1] + (m[2] ? " OTC" : "")); if (s) found.add(s);
+  }
+  for (const a of Object.keys(ALIASES)) {
+    if (new RegExp("\\b" + a + "\\b", "i").test(text)) { const s = canonicalAsset(a); if (s) found.add(s); }
+  }
+  return [...found].sort();
+}
+
+// ---- sentiment -----------------------------------------------------------
+// Domain lexicon: "call"/"put" are directional here, "green"/"red" describe candles.
+const BULL = { buy:2,buying:2,long:2,call:2,calls:2,up:1,bull:2.5,bullish:3,moon:2,pump:2,rally:2.5,
+  breakout:2.5,surge:2,rise:1.5,rising:1.5,rebound:2,recover:1.5,green:1.5,gain:2,gains:2,profit:2,
+  win:2.5,wins:2.5,winning:2.5,won:2.5,itm:2.5,strong:1.5,support:1,uptrend:3,higher:1.5,golden:2,
+  accumulate:1.5,oversold:1.5,"🚀":2.5,"📈":2.5,"🟢":2,"✅":1.5 };
+const BEAR = { sell:2,selling:2,short:2,put:2,puts:2,down:1,bear:2.5,bearish:3,dump:2.5,dumping:2.5,
+  crash:3,drop:2,dropping:2,fall:1.5,falling:1.5,plunge:2.5,reject:2,rejection:2,red:1.5,loss:2.5,
+  losses:2.5,lose:2.5,losing:2.5,lost:2.5,otm:2.5,weak:1.5,resistance:1,downtrend:3,lower:1.5,
+  breakdown:2.5,correction:1.5,overbought:1.5,liquidated:3,"🔻":2.5,"📉":2.5,"🔴":2,"❌":1.5 };
+const NEGATORS = new Set(["not","no","never","dont","don't","doesnt","doesn't","isnt","isn't","wasnt","wasn't","avoid","without","cant","can't","stop","hardly","barely"]);
+const INTENS = { very:1.5,super:1.5,extremely:1.8,huge:1.6,massive:1.7,strong:1.4,strongly:1.4,big:1.3,
+  slightly:.6,bit:.6,little:.6,somewhat:.7,maybe:.6,possibly:.6 };
+
+const STRATEGIES = {
+  "Support & Resistance":["support","resistance","s/r","key level","supply zone","demand zone"],
+  "Trend Following":["trend","uptrend","downtrend","trend line","trendline"],
+  "Moving Average":["moving average","ma cross","ema","sma","golden cross","death cross"],
+  "RSI":["rsi","relative strength","overbought","oversold"],
+  "MACD":["macd","signal line","histogram"],
+  "Bollinger Bands":["bollinger","bands","bb squeeze"],
+  "Price Action":["price action","pin bar","engulfing","doji","candlestick","wick","hammer"],
+  "Breakout":["breakout","break out","breaking out","break above","break below"],
+  "Reversal":["reversal","reverse","bounce","retrace","pullback"],
+  "Martingale":["martingale","double down","recover loss"],
+  "News Trading":["news","nfp","cpi","fed","fomc","rate decision"],
+  "Fibonacci":["fibonacci","fib","retracement","0.618"],
+  "Scalping":["scalp","scalping","quick trade","1 min","30 sec"]
+};
+
+const SPAM_RULES = [
+  { label:"invite link", re:/(t\.me\/|discord\.gg\/|wa\.me\/|bit\.ly\/|chat\.whatsapp)/i },
+  { label:"solicitation", re:/\b(dm me|inbox me|pm me|contact me|whatsapp me|join my|subscribe|vip (group|signal|channel))\b/i },
+  { label:"guaranteed returns", re:/\b(guaranteed|100% (win|accuracy|profit)|no loss|risk[- ]free|double your (money|account))\b/i },
+  { label:"referral", re:/\b(referral|promo code|sign ?up (link|bonus)|use my link)\b/i },
+  { label:"account management", re:/\b(i (can )?manage your account|send me your (login|credentials|password))\b/i }
+];
+
+function tokenize(t) {
+  return t.replace(/(\p{Extended_Pictographic})/gu, " $1 ").toLowerCase()
+    .split(/[^\p{L}\p{N}'\p{Extended_Pictographic}]+/u).filter(Boolean);
+}
+
+/**
+ * Squashed with x/(x+4) rather than divided by length: one strong term in a long
+ * message shouldn't wash out, and ten shouldn't score ten times as extreme.
+ */
+function analyzeSentiment(text) {
+  const toks = tokenize(text);
+  let raw = 0;
+  for (let i = 0; i < toks.length; i++) {
+    const t = toks[i];
+    const b = BULL[t], r = BEAR[t];
+    if (b === undefined && r === undefined) continue;
+    let w = b !== undefined ? b : -r, neg = false, mult = 1;
+    for (let k = 1; k <= 3 && i - k >= 0; k++) {
+      const p = toks[i - k];
+      if (NEGATORS.has(p)) { neg = true; break; }
+      if (INTENS[p] !== undefined) mult *= INTENS[p];
+    }
+    // Negation flips and damps — "not great" is mildly negative, not strongly so.
+    if (neg) w *= -0.7;
+    raw += w * mult;
+  }
+  const mag = Math.abs(raw), score = raw === 0 ? 0 : Math.sign(raw) * (mag / (mag + 4));
+  return { score:+score.toFixed(4), sentiment: score > .12 ? "BULLISH" : score < -.12 ? "BEARISH" : "NEUTRAL" };
+}
+
+function detectSpam(content, author) {
+  for (const { label, re } of SPAM_RULES) if (re.test(content)) return { isSpam:true, reason:label };
+  const letters = content.replace(/[^\p{L}]/gu, "");
+  if (letters.length >= 12 && content.replace(/[^A-Z]/g, "").length / letters.length > .7)
+    return { isSpam:true, reason:"shouting" };
+  const emoji = [...content.matchAll(/\p{Extended_Pictographic}/gu)].length;
+  const words = content.trim().split(/\s+/).filter(Boolean).length;
+  if (emoji >= 6 && emoji > words) return { isSpam:true, reason:"emoji flood" };
+  if (/(.)\1{9,}/.test(content)) return { isSpam:true, reason:"character flood" };
+  if (!author.trim()) return { isSpam:true, reason:"missing author" };
+  return { isSpam:false, reason:null };
+}
+
+/** Collapses digits and URLs so near-identical posts hash alike. */
+function normalizeForHash(c) {
+  return c.toLowerCase().replace(/https?:\/\/\S+/g, " url ").replace(/\d+/g, "#")
+    .replace(/[^\p{L}\p{N}#\s]/gu, " ").replace(/\s+/g, " ").trim();
+}
+
+// ---- signal parsing ------------------------------------------------------
+const COLS = {
+  asset:["asset","pair","symbol","instrument","market","currency pair","ticker"],
+  direction:["direction","side","action","type","call/put","order","signal"],
+  entry:["entry time","entry","open time","time","date","opened at","timestamp","entry_at"],
+  expiry:["expiry time","expiry","close time","closed at","expiration","expires at"],
+  timeframe:["timeframe","duration","expiry duration","period","tf","expiration time"],
+  result:["result","outcome","status","win/loss","pl result"],
+  stake:["stake","amount","investment","bet","size","trade amount"],
+  payout:["payout","payout %","payout rate","return","profit %"],
+  pnl:["pnl","p/l","profit","profit/loss","net","result amount","profit_loss"],
+  confidence:["confidence","probability","strength","score","accuracy"],
+  provider:["provider","source","channel","author","signal provider","trader","bot"]
+};
+
+function parseDirection(raw) {
+  if (!raw) return null;
+  const v = String(raw).trim().toLowerCase();
+  if (/^(buy|call|up|long|higher|bull|bullish|1)$/.test(v)) return "BUY";
+  if (/^(sell|put|down|short|lower|bear|bearish|0|-1|2)$/.test(v)) return "SELL";
+  if (/\b(buy|call|up|long)\b/.test(v)) return "BUY";
+  if (/\b(sell|put|down|short)\b/.test(v)) return "SELL";
+  return null;
+}
+
+function parseResult(raw) {
+  if (!raw) return "PENDING";
+  const v = String(raw).trim().toLowerCase();
+  if (/^(win|won|w|profit|itm|success|1|true)$/.test(v)) return "WIN";
+  if (/^(loss|lose|lost|l|otm|fail|failed|0|false)$/.test(v)) return "LOSS";
+  if (/^(draw|tie|refund|refunded|break ?even|equal|push)$/.test(v)) return "DRAW";
+  if (/\bwin\b|\bwon\b/.test(v)) return "WIN";
+  if (/\bloss\b|\blost\b/.test(v)) return "LOSS";
+  return "PENDING";
+}
+
+function normConfidence(v) {
+  if (v === null || v < 0) return null;
+  if (v <= 1) return v;
+  return v <= 100 ? +(v / 100).toFixed(4) : null;
+}
+
+/** One loosely-typed record → a validated signal, or an error entry. */
+function buildSignal(rec, rowNo, errors) {
+  const assetRaw = pick(rec, COLS.asset);
+  if (!assetRaw) { errors.push({ row:rowNo, reason:"No asset column found" }); return null; }
+  const asset = canonicalAsset(assetRaw) || assetRaw.toUpperCase();
+
+  const dirRaw = pick(rec, COLS.direction) ?? assetRaw;
+  const direction = parseDirection(dirRaw);
+  if (!direction) { errors.push({ row:rowNo, reason:'Could not read a BUY/SELL direction from "' + dirRaw + '"' }); return null; }
+
+  const entryAt = parseDate(pick(rec, COLS.entry));
+  if (!entryAt) { errors.push({ row:rowNo, reason:"Missing or unparseable entry time" }); return null; }
+
+  const tf = parseTimeframe(pick(rec, COLS.timeframe));
+  const expRaw = parseDate(pick(rec, COLS.expiry));
+
+  // Expiry can be an absolute time, a duration, or both — derive whichever is missing.
+  let expiresAt, timeframeSec;
+  if (expRaw && tf) { expiresAt = expRaw; timeframeSec = tf; }
+  else if (expRaw) { expiresAt = expRaw; timeframeSec = Math.max(1, Math.round((expRaw - entryAt) / 1000)); }
+  else if (tf) { timeframeSec = tf; expiresAt = new Date(+entryAt + tf * 1000); }
+  else { errors.push({ row:rowNo, reason:"Row has neither an expiry time nor a timeframe" }); return null; }
+
+  if (expiresAt < entryAt) { errors.push({ row:rowNo, reason:"Expiry is before entry" }); return null; }
+
+  return { asset, direction, entryAt, expiresAt, timeframeSec,
+    result: parseResult(pick(rec, COLS.result)),
+    stake: parseNumber(pick(rec, COLS.stake)),
+    payout: parseNumber(pick(rec, COLS.payout)),
+    pnl: parseNumber(pick(rec, COLS.pnl)),
+    confidence: normConfidence(parseNumber(pick(rec, COLS.confidence))),
+    provider: pick(rec, COLS.provider) ?? null };
+}
+
+function parseSignalsText(text) {
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  const errors = [], rows = [];
+  lines.forEach((line, i) => {
+    const rowNo = i + 1;
+    const direction = parseDirection(line);
+    if (!direction) { errors.push({ row:rowNo, reason:"No BUY/SELL keyword in line" }); return; }
+    const am = /\b([A-Za-z]{3}\s?[/\-]\s?[A-Za-z]{3}|[A-Za-z]{6})\b(\s*\(?otc\)?)?/i.exec(line);
+    if (!am) { errors.push({ row:rowNo, reason:"No asset found in line" }); return; }
+    const asset = canonicalAsset(am[1] + (am[2] ? " OTC" : "")) || am[1].toUpperCase();
+    const dm = /\b(\d{4}-\d{2}-\d{2}(?:[ T]\d{1,2}:\d{2}(?::\d{2})?)?|\d{1,2}[/.]\d{1,2}[/.]\d{2,4}(?:\s+\d{1,2}:\d{2})?)\b/.exec(line);
+    let entryAt = dm ? parseDate(dm[1]) : null;
+    if (!entryAt) { errors.push({ row:rowNo, reason:"No entry date found in line" }); return; }
+    const tm = /\b([smh]\s?\d+|\d+\s?(?:s|sec|secs|m|min|mins|h|hr|hours))\b/i.exec(line);
+    const timeframeSec = parseTimeframe(tm && tm[1]) ?? 300;
+    const rm = /\b(win|won|loss|lost|lose|draw|refund|itm|otm|pending)\b/i.exec(line);
+    rows.push({ asset, direction, entryAt, expiresAt:new Date(+entryAt + timeframeSec * 1000), timeframeSec,
+      result: parseResult(rm && rm[1]), stake:null, payout:null, pnl:null, confidence:null, provider:null });
+  });
+  return { rows, errors, seen: lines.length };
+}
+
+function parseSignals(text, filename) {
+  const lower = (filename || "").toLowerCase();
+  const looksJson = () => { const t = text.trimStart(); if (!t.startsWith("[") && !t.startsWith("{")) return false; try { JSON.parse(text); return true; } catch { return false; } };
+
+  if (lower.endsWith(".json") || (!lower.endsWith(".csv") && looksJson())) {
+    let data; try { data = JSON.parse(text); } catch { return { rows:[], errors:[{ row:0, reason:"File is not valid JSON" }], seen:0 }; }
+    const list = Array.isArray(data) ? data : (data.signals || data.data);
+    if (!Array.isArray(list)) return { rows:[], errors:[{ row:0, reason:'Expected an array, or an object with a "signals" array' }], seen:0 };
+    const errors = [], rows = [];
+    list.forEach((r, i) => { const s = r && typeof r === "object" ? buildSignal(r, i + 1, errors) : null; if (s) rows.push(s); });
+    return { rows, errors, seen:list.length };
+  }
+
+  const first = text.split(/\r?\n/, 1)[0] || "";
+  if (lower.endsWith(".csv") || lower.endsWith(".tsv") || (/[,;\t]/.test(first) && /asset|pair|symbol|direction|entry/i.test(first))) {
+    const recs = parseCSV(text), errors = [], rows = [];
+    recs.forEach((r, i) => { const s = buildSignal(r, i + 2, errors); if (s) rows.push(s); });
+    return { rows, errors, seen:recs.length };
+  }
+  return parseSignalsText(text);
+}
+
+// ---- chat parsing --------------------------------------------------------
+function enrichMessage(channel, author, content, postedAt) {
+  const s = analyzeSentiment(content), spam = detectSpam(content, author);
+  const hay = content.toLowerCase();
+  const strategies = Object.keys(STRATEGIES).filter(k => STRATEGIES[k].some(p => hay.includes(p))).sort();
+  return { channel, author, content, postedAt, sentiment:s.sentiment, sentimentScore:s.score,
+    assets: detectAssets(content), strategies, isSpam:spam.isSpam, spamReason:spam.reason,
+    hash: normalizeForHash(content) };
+}
+
+function parseChat(text, filename) {
+  const lower = (filename || "").toLowerCase();
+  const errors = [], drafts = [];
+
+  if (lower.endsWith(".json")) {
+    let data; try { data = JSON.parse(text); } catch { return { rows:[], errors:[{ row:0, reason:"Not valid JSON" }], seen:0 }; }
+    const list = Array.isArray(data) ? data : data.messages;
+    if (!Array.isArray(list)) return { rows:[], errors:[{ row:0, reason:'Expected an array or a "messages" array' }], seen:0 };
+    const rows = [];
+    list.forEach((e, i) => {
+      if (!e || typeof e !== "object") { errors.push({ row:i + 1, reason:"Entry is not an object" }); return; }
+      // Telegram splits bodies into an array of text runs.
+      const rc = e.text ?? pick(e, ["content","message","body","msg"]);
+      const content = Array.isArray(rc) ? rc.map(p => typeof p === "string" ? p : (p && p.text) || "").join("") : rc;
+      const postedAt = parseDate(pick(e, ["posted at","timestamp","time","date","sent at","date_unixtime"]));
+      if (!content || !String(content).trim()) { errors.push({ row:i + 1, reason:"Message has no text" }); return; }
+      if (!postedAt) { errors.push({ row:i + 1, reason:"Missing or unparseable timestamp" }); return; }
+      rows.push(enrichMessage(data.name || "imported", pick(e, ["author","user","username","sender","from","name"]) || "unknown", String(content).trim(), postedAt));
+    });
+    return { rows, errors, seen:list.length };
+  }
+
+  const first = text.split(/\r?\n/, 1)[0] || "";
+  if (lower.endsWith(".csv") || (/[,;\t]/.test(first) && /message|content|text|author|user/i.test(first))) {
+    const recs = parseCSV(text), rows = [];
+    recs.forEach((r, i) => {
+      const content = pick(r, ["content","message","text","body","msg","comment"]);
+      const postedAt = parseDate(pick(r, ["posted at","timestamp","time","date","sent at","datetime"]));
+      if (!content) { errors.push({ row:i + 2, reason:"No message content column" }); return; }
+      if (!postedAt) { errors.push({ row:i + 2, reason:"Missing or unparseable timestamp" }); return; }
+      rows.push(enrichMessage(pick(r, ["channel","room","group","chat","source"]) || "imported",
+        pick(r, ["author","user","username","sender","from","name"]) || "unknown", content, postedAt));
+    });
+    return { rows, errors, seen:recs.length };
+  }
+
+  // Plain transcript. An unmatched line continues the previous message.
+  const PATTERNS = [
+    /^\s*\[(?<ts>[^\]]+)\]\s*(?<author>[^:]{1,60}?):\s*(?<body>.*)$/,
+    /^\s*(?<ts>\d{1,2}[/.]\d{1,2}[/.]\d{2,4},?\s+\d{1,2}:\d{2}(?::\d{2})?)\s*[-–]\s*(?<author>[^:]{1,60}?):\s*(?<body>.*)$/,
+    /^\s*(?<ts>\d{4}-\d{2}-\d{2}[ T]\d{1,2}:\d{2}(?::\d{2})?)\s*[-–]?\s*(?<author>[^:]{1,60}?):\s*(?<body>.*)$/
+  ];
+  text.split(/\r?\n/).forEach((line, i) => {
+    if (!line.trim()) return;
+    for (const p of PATTERNS) {
+      const m = p.exec(line);
+      if (!m) continue;
+      const postedAt = parseDate(m.groups.ts);
+      if (!postedAt) { errors.push({ row:i + 1, reason:'Could not read a timestamp from "' + m.groups.ts + '"' }); return; }
+      drafts.push({ author:m.groups.author.trim(), content:[m.groups.body], postedAt });
+      return;
+    }
+    if (drafts.length) drafts[drafts.length - 1].content.push(line.trim());
+    else errors.push({ row:i + 1, reason:"No recognisable timestamp and no preceding message" });
+  });
+
+  const rows = drafts.map(d => enrichMessage("imported", d.author, d.content.join("\n").trim(), d.postedAt))
+    .filter(m => m.content.length);
+  return { rows, errors, seen: drafts.length + errors.length };
+}
+
+/** Decides whether a file is signals or chat, so the user need not say. */
+function detectKind(text, filename) {
+  const lower = (filename || "").toLowerCase();
+  if (lower.endsWith(".txt") || lower.endsWith(".log")) {
+    return /^\s*\[?[\d/.\-: ]+\]?\s*[^:]{1,60}:\s/m.test(text) ? "CHAT" : "SIGNALS";
+  }
+  const first = text.split(/\r?\n/, 1)[0] || "";
+  if (/message|content\b|\btext\b/i.test(first) && !/asset|pair|symbol/i.test(first)) return "CHAT";
+  const sig = parseSignals(text, filename);
+  return sig.rows.length ? "SIGNALS" : "CHAT";
+}
+
+/* =========================================================================
+ * Statistics
+ * ========================================================================= */
+const round = (v, p = 4) => Math.round(v * 10 ** p) / 10 ** p;
+
+/**
+ * winRate excludes draws (the conventional figure); accuracy counts them
+ * against, since a refunded trade still means the call didn't land.
+ */
+function computeStats(sigs) {
+  const empty = { total:0,settled:0,wins:0,losses:0,draws:0,pending:0,winRate:0,accuracy:0,
+    netPnl:0,avgPnl:0,profitFactor:null,bestStreak:0,worstStreak:0 };
+  if (!sigs.length) return empty;
+
+  let wins = 0, losses = 0, draws = 0, pending = 0, net = 0, gp = 0, gl = 0;
+  for (const s of sigs) {
+    if (s.result === "WIN") wins++; else if (s.result === "LOSS") losses++;
+    else if (s.result === "DRAW") draws++; else pending++;
+    if (s.pnl !== null && s.result !== "PENDING") { net += s.pnl; if (s.pnl >= 0) gp += s.pnl; else gl += -s.pnl; }
+  }
+  const settled = wins + losses + draws, decided = wins + losses;
+
+  let best = 0, worst = 0, cw = 0, cl = 0;
+  for (const s of [...sigs].sort((a, b) => a.entryAt - b.entryAt)) {
+    if (s.result === "WIN") { cw++; cl = 0; best = Math.max(best, cw); }
+    else if (s.result === "LOSS") { cl++; cw = 0; worst = Math.max(worst, cl); }
+  }
+  return { total:sigs.length, settled, wins, losses, draws, pending,
+    winRate: decided ? round(wins / decided) : 0,
+    accuracy: settled ? round(wins / settled) : 0,
+    netPnl: round(net, 2), avgPnl: settled ? round(net / settled, 2) : 0,
+    // null rather than Infinity, so the UI shows "—" not a fake ratio.
+    profitFactor: gl === 0 ? null : round(gp / gl, 2),
+    bestStreak:best, worstStreak:worst };
+}
+
+function bucketBy(sigs, keyOf, labelOf) {
+  const groups = new Map();
+  for (const s of sigs) { const k = keyOf(s); if (k == null) continue; (groups.get(k) || groups.set(k, []).get(k)).push(s); }
+  return [...groups.entries()].map(([key, g]) => Object.assign({ key, label: labelOf ? labelOf(key) : key }, computeStats(g)))
+    .sort((a, b) => a.key.localeCompare(b.key));
+}
+
+const isoDay = d => d.toISOString().slice(0, 10);
+function fmtTf(s) { return s < 60 ? s + "s" : s < 3600 ? Math.round(s / 60) + "m" : s < 86400 ? Math.round(s / 3600) + "h" : Math.round(s / 86400) + "d"; }
+
+const byAsset = s => bucketBy(s, x => x.asset);
+const byProvider = s => bucketBy(s, x => x.provider || "Unattributed");
+const byHour = s => bucketBy(s, x => String(x.entryAt.getUTCHours()).padStart(2, "0"), k => k + ":00");
+const byTimeframe = s => bucketBy(s, x => String(x.timeframeSec).padStart(6, "0"), k => fmtTf(+k));
+const byDay = s => bucketBy(s, x => isoDay(x.entryAt));
+
+/** Days with no signals are omitted, so a gap doesn't render as a flat losing line. */
+function dailySeries(sigs) {
+  let cum = 0;
+  return byDay(sigs).map(b => { cum = round(cum + b.netPnl, 2);
+    return { date:b.key, winRate:b.winRate, accuracy:b.accuracy, pnl:b.netPnl, cumulativePnl:cum, count:b.total }; });
+}
+
+/** All 168 cells emitted, including empties — a holed grid is unreadable. */
+function heatmap(sigs) {
+  const grid = new Map();
+  for (const s of sigs) { const k = s.entryAt.getUTCDay() + "-" + s.entryAt.getUTCHours(); (grid.get(k) || grid.set(k, []).get(k)).push(s); }
+  const cells = [];
+  for (let d = 0; d < 7; d++) for (let h = 0; h < 24; h++) {
+    const st = computeStats(grid.get(d + "-" + h) || []);
+    cells.push({ weekday:d, hour:h, count:st.total, winRate:st.winRate });
+  }
+  return cells;
+}
+
+/** Ranks only buckets with enough data — 100% over two trades is noise. */
+function rankBuckets(buckets, min = 8) {
+  const ok = buckets.filter(b => b.settled >= min);
+  const sorted = [...ok].sort((a, b) => b.winRate - a.winRate || b.settled - a.settled);
+  return { best:sorted.slice(0, 5), worst:sorted.slice(-5).reverse(), excluded:buckets.length - ok.length };
+}
+
+// ---- insights ------------------------------------------------------------
+const sampleConf = n => n <= 0 ? 0 : +Math.min(1, Math.sqrt(n / 200)).toFixed(2);
+const stdErr = (p, n) => n ? Math.sqrt(Math.max(p * (1 - p), 1e-4) / n) : 1;
+
+function generateInsights(sigs, chatStats) {
+  const st = computeStats(sigs), out = [];
+  const push = o => out.push(Object.assign({ id:"i" + (out.length + 1) }, o));
+  const MIN = 20;
+
+  if (st.settled < MIN) push({ kind:"risk", severity:"warning",
+    title:"Not enough settled signals for reliable analysis",
+    detail:"Only " + st.settled + " signal" + (st.settled === 1 ? " has" : "s have") + " a recorded outcome. Rates computed on fewer than " + MIN + " results swing wildly with each new trade.",
+    confidence:1 });
+
+  if (st.settled > 0) {
+    const margin = 1.96 * stdErr(st.winRate, st.settled);
+    const beats = st.winRate - margin > .5, loses = st.winRate + margin < .5;
+    push({ kind:"trend", severity: beats ? "good" : loses ? "critical" : "info",
+      title:"Win rate " + (st.winRate * 100).toFixed(1) + "% across " + st.settled + " settled signals",
+      detail: beats
+        ? "The 95% confidence interval (±" + (margin * 100).toFixed(1) + " pts) sits entirely above 50%, so this is unlikely to be chance over this sample."
+        : loses
+        ? "The 95% confidence interval (±" + (margin * 100).toFixed(1) + " pts) sits entirely below 50%. Over this sample it underperformed a coin flip."
+        : "The 95% confidence interval (±" + (margin * 100).toFixed(1) + " pts) still straddles 50%, so this sample cannot distinguish the feed from chance.",
+      confidence: sampleConf(st.settled) });
+  }
+
+  const series = dailySeries(sigs);
+  if (series.length >= 3) {
+    let peak = -Infinity, dd = 0;
+    for (const p of series) { peak = Math.max(peak, p.cumulativePnl); dd = Math.max(dd, peak - p.cumulativePnl); }
+    if (dd > 0) push({ kind:"risk", severity: dd > Math.abs(st.netPnl) ? "warning" : "info",
+      title:"Largest peak-to-trough drawdown: " + dd.toFixed(2),
+      detail:"Equity fell " + dd.toFixed(2) + " from its high point. Net result over the same window was " + st.netPnl.toFixed(2) + ".",
+      confidence: sampleConf(st.settled) });
+  }
+
+  if (st.worstStreak >= 4) push({ kind:"risk", severity: st.worstStreak >= 7 ? "critical" : "warning",
+    title:"Longest losing run: " + st.worstStreak + " consecutive signals",
+    detail:"Any position sizing that escalates after a loss would have needed to survive " + st.worstStreak + " straight losses here.",
+    confidence:1 });
+
+  const ar = rankBuckets(byAsset(sigs), 8);
+  if (ar.best.length) { const b = ar.best[0];
+    push({ kind:"pattern", severity:"good", title:b.label + " is the strongest asset in this data",
+      detail:(b.winRate * 100).toFixed(1) + "% across " + b.settled + " settled signals." + (ar.excluded ? " " + ar.excluded + " other asset" + (ar.excluded === 1 ? " was" : "s were") + " excluded for having fewer than 8 results." : ""),
+      confidence: sampleConf(b.settled) }); }
+  if (ar.worst.length) { const w = ar.worst[0];
+    if (w.key !== (ar.best[0] || {}).key && w.winRate < .5)
+      push({ kind:"pattern", severity:"warning", title:w.label + " is the weakest asset in this data",
+        detail:(w.winRate * 100).toFixed(1) + "% across " + w.settled + " settled signals, net " + w.netPnl.toFixed(2) + ".",
+        confidence: sampleConf(w.settled) }); }
+
+  const hr = rankBuckets(byHour(sigs), 8);
+  if (hr.best.length && hr.worst.length) {
+    const b = hr.best[0], w = hr.worst[0], gap = b.winRate - w.winRate;
+    // Only report a spread that exceeds the combined noise of both estimates.
+    const noise = 1.96 * Math.sqrt(stdErr(b.winRate, b.settled) ** 2 + stdErr(w.winRate, w.settled) ** 2);
+    if (gap > noise && gap >= .1) push({ kind:"pattern", severity:"info",
+      title:"Hour of day separates outcomes by " + (gap * 100).toFixed(1) + " points",
+      detail:b.label + " UTC returned " + (b.winRate * 100).toFixed(1) + "% over " + b.settled + " signals, against " + (w.winRate * 100).toFixed(1) + "% at " + w.label + " UTC over " + w.settled + ". The gap is wider than the sampling noise of either estimate.",
+      confidence: sampleConf(Math.min(b.settled, w.settled)) });
+  }
+
+  const tr = rankBuckets(byTimeframe(sigs), 8);
+  if (tr.best.length > 1) push({ kind:"pattern", severity:"info",
+    title:tr.best[0].label + " expiries performed best",
+    detail:(tr.best[0].winRate * 100).toFixed(1) + "% over " + tr.best[0].settled + " settled signals at this expiry length.",
+    confidence: sampleConf(tr.best[0].settled) });
+
+  const pv = byProvider(sigs).filter(b => b.settled >= 10);
+  if (pv.length >= 2) {
+    const s2 = [...pv].sort((a, b) => b.winRate - a.winRate), t = s2[0], bo = s2[s2.length - 1];
+    if (t.winRate - bo.winRate >= .1) push({ kind:"pattern", severity:"info",
+      title:"Providers diverge by " + ((t.winRate - bo.winRate) * 100).toFixed(1) + " points",
+      detail:t.label + " at " + (t.winRate * 100).toFixed(1) + "% (" + t.settled + " settled) versus " + bo.label + " at " + (bo.winRate * 100).toFixed(1) + "% (" + bo.settled + " settled).",
+      confidence: sampleConf(Math.min(t.settled, bo.settled)) });
+  }
+
+  if (chatStats && chatStats.analysed > 0) {
+    const lean = chatStats.mean > .08 ? "bullish" : chatStats.mean < -.08 ? "bearish" : "balanced";
+    push({ kind:"sentiment", severity:"info", title:"Room sentiment reads " + lean,
+      detail:"Mean polarity " + (chatStats.mean >= 0 ? "+" : "") + chatStats.mean.toFixed(3) + " across " + chatStats.analysed + " messages — " + chatStats.bullish + " bullish, " + chatStats.bearish + " bearish, " + chatStats.neutral + " neutral.",
+      confidence: sampleConf(chatStats.analysed) });
+    if (chatStats.spamRatio > .2) push({ kind:"risk", severity: chatStats.spamRatio > .4 ? "critical" : "warning",
+      title:(chatStats.spamRatio * 100).toFixed(0) + "% of messages flagged promotional",
+      detail:"Sentiment over this channel is measuring marketing copy as much as trader opinion.",
+      confidence:.9 });
+  }
+
+  // Recommendations — about the data, never about trades to place.
+  const recs = [];
+  if (ar.worst.length && ar.worst[0].winRate < .45) recs.push("Review why " + ar.worst[0].label + " underperforms the rest of the set before including it in further analysis.");
+  if (st.pending > st.settled && st.total > 0) recs.push(st.pending + " of " + st.total + " signals have no recorded outcome. Backfilling results would materially change every rate here.");
+  if (st.settled >= MIN && st.profitFactor !== null && st.profitFactor < 1) recs.push("Profit factor is " + st.profitFactor.toFixed(2) + " — gross losses exceed gross gains despite the win rate. Check payout ratios per asset.");
+  if (st.settled >= MIN && st.winRate > .5 && st.netPnl < 0) recs.push("A winning rate with a losing balance means payouts are below break-even. At an 80% payout you need above 55.5% just to break even.");
+  if (!recs.length) recs.push("No data-quality problems stand out. Keep importing results so the sample keeps growing.");
+  for (const r of recs) push({ kind:"recommendation", severity:"info", title:"Suggested next step", detail:r, confidence:.7 });
+
+  // Risk
+  const factors = []; let score = 0;
+  if (st.settled < MIN) { score += 30; factors.push("Sample too small for stable estimates"); }
+  if (st.worstStreak >= 5) { score += 20; factors.push("Losing runs reach " + st.worstStreak + " signals"); }
+  if (st.winRate < .5 && st.settled >= MIN) { score += 25; factors.push("Win rate below 50% over a meaningful sample"); }
+  if (st.profitFactor !== null && st.profitFactor < 1) { score += 15; factors.push("Gross losses exceed gross gains"); }
+  if (chatStats && chatStats.spamRatio > .3) { score += 10; factors.push("Chat source is heavily promotional"); }
+  if (st.pending > st.settled) { score += 10; factors.push("Most signals have no recorded outcome"); }
+  if (!factors.length) factors.push("No elevated risk factors detected in the imported data");
+  score = Math.min(100, score);
+  const level = score >= 70 ? "high" : score >= 45 ? "elevated" : score >= 20 ? "moderate" : "low";
+
+  // Capped below 1: a retrospective read is never grounds for claiming certainty.
+  const confidence = +Math.min(.95, sampleConf(st.settled) * .7 + (st.pending > 0 ? .3 * (st.settled / Math.max(st.total, 1)) : .3)).toFixed(2);
+
+  const summary = st.total === 0 ? "No signals in scope."
+    : st.total + " signals, " + st.settled + " with a recorded outcome. "
+      + (st.settled ? "Win rate " + (st.winRate * 100).toFixed(1) + "% and accuracy " + (st.accuracy * 100).toFixed(1) + "% once draws are counted against. " : "None have settled, so no hit rate can be computed. ")
+      + (st.netPnl !== 0 ? "Net result " + (st.netPnl >= 0 ? "+" : "") + st.netPnl.toFixed(2) + " with a profit factor of " + (st.profitFactor === null ? "—" : st.profitFactor.toFixed(2)) + ". " : "No profit/loss figures were present. ")
+      + "Best run " + st.bestStreak + ", worst run " + st.worstStreak + ". Risk reads " + level + ", and the analysis carries " + Math.round(confidence * 100) + "% confidence given the sample size.";
+
+  return { insights:out, risk:{ level, score, factors }, confidence, summary };
+}
+</script>
+<script src="./render.js"></script>

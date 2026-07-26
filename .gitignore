@@ -48,3 +48,7 @@ Thumbs.db
 # Local scratch files
 /_smoke.ts
 /_shot*.mjs
+
+# Generated demo snapshot — rebuild with `npm run demo`
+/demo.html
+/webapp.html
