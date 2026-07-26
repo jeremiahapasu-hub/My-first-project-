@@ -1,0 +1,187 @@
+@import "tailwindcss";
+
+/*
+ * Pocket Signal Lab — visual system
+ *
+ * A single dark treatment, chosen deliberately rather than by omission: this is a
+ * monitoring surface people keep open for long sessions, and the charts are built
+ * around luminous marks on a dark ground.
+ *
+ * The neutrals are not grey. They carry a slight blue bias (hue ~220) that pulls
+ * toward the teal accent, so panels read as part of one palette instead of as
+ * default UI chrome sitting behind coloured data.
+ */
+@theme {
+  /* Grounds, darkest to lightest */
+  --color-abyss: #070b14;
+  --color-void: #0a0f1c;
+  --color-panel: #111827;
+  --color-panel-2: #161f31;
+  --color-line: #1f2a3d;
+  --color-line-soft: #18212f;
+
+  /* Text */
+  --color-ink: #e8edf6;
+  --color-ink-dim: #9aa8c0;
+  --color-ink-faint: #64748b;
+
+  /* Accent — teal. Chosen over the usual dashboard blue so the primary accent
+     never collides with the semantic win/loss pair. */
+  --color-accent: #1e9e8a;
+  --color-accent-bright: #2dd4a7;
+  --color-accent-dim: #14655a;
+
+  /* Semantic. Separate from the accent on purpose: colour that encodes an
+     outcome must not be reused for emphasis. */
+  --color-win: #2dd4a7;
+  --color-loss: #f0556b;
+  --color-draw: #7c8db5;
+  --color-pending: #e0a33e;
+
+  --color-bull: #2dd4a7;
+  --color-bear: #f0556b;
+  --color-flat: #7c8db5;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, "JetBrains Mono",
+    "Cascadia Mono", Menlo, Consolas, monospace;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background-color: var(--color-abyss);
+  color: var(--color-ink);
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Every figure in this app is read in a column against other figures, so digits
+   are tabular globally rather than opted into per component. */
+.tnum,
+table,
+.stat-value {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Keyboard focus must stay visible everywhere; the accent is bright enough on
+   this ground to serve as the ring. */
+:focus-visible {
+  outline: 2px solid var(--color-accent-bright);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--color-accent) 40%, transparent);
+  color: var(--color-ink);
+}
+
+/* Scrollbars, so overflow areas don't render as bright OS-default bars. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: var(--color-line);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: #2b3a52;
+}
+
+@utility panel {
+  background-color: var(--color-panel);
+  border: 1px solid var(--color-line);
+  border-radius: 0.75rem;
+}
+
+/* Uppercase micro-labels need tracking to stay legible at this size. */
+@utility label-eyebrow {
+  font-size: 0.6875rem;
+  line-height: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-ink-faint);
+}
+
+@keyframes psl-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes psl-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-in {
+  animation: psl-fade-up 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Loading placeholders — a slow sweep rather than a pulsing block. */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background-color: var(--color-panel-2);
+}
+
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background-image: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, var(--color-line) 60%, transparent),
+    transparent
+  );
+  animation: psl-shimmer 1.6s infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Recharts injects its own focus outline on every segment; ours is better. */
+.recharts-wrapper:focus,
+.recharts-surface:focus {
+  outline: none;
+}

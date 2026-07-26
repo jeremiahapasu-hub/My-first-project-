@@ -1,0 +1,52 @@
+# Development stack.
+#
+# `docker compose up -d db` gives you just PostgreSQL, which is all you need
+# while running the app with `npm run dev`.
+#
+# `docker compose --profile app up -d` additionally builds and runs the app.
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: psl-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: pocket_analytics
+    ports:
+      - "5432:5432"
+    volumes:
+      - psl-db-data:/var/lib/postgresql/data
+    healthcheck:
+      # The app's `depends_on` waits for this, so migrations never race startup.
+      test: ["CMD-SHELL", "pg_isready -U postgres -d pocket_analytics"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: psl-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # `db` resolves on the compose network; localhost would point at the container.
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/pocket_analytics?schema=public
+      # Override in a .env file next to this one. Do not ship this default.
+      AUTH_SECRET: ${AUTH_SECRET:-change-me-this-default-is-not-safe-for-production}
+      AUTH_SESSION_TTL: ${AUTH_SESSION_TTL:-7d}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      NODE_ENV: production
+    ports:
+      - "3000:3000"
+
+volumes:
+  psl-db-data:

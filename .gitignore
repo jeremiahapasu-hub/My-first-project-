@@ -1,69 +1,50 @@
-# Prerequisites
-*.d
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
 
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
+# Next.js
+/.next/
+/out/
+next-env.d.ts
+.turbo/
 
-# Precompiled Headers
-*.gch
-*.pch
+# Production build
+/build
 
-# Linker files
-*.ilk
+# Environment — never commit real credentials.
+# `.env.example` is committed; `.env` and its variants are not.
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 
-# Debugger Files
-*.pdb
+# Testing
+/coverage
 
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-*.so.*
-
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
-*.exe
-*.out
-*.app
-
-# Build directories
-build/
-Build/
-build-*/
-
-# CMake generated files
-CMakeFiles/
-CMakeCache.txt
-cmake_install.cmake
-Makefile
-install_manifest.txt
-compile_commands.json
-
-# Temporary files
-*.tmp
+# Logs
 *.log
-*.bak
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+.idea/
 *.swp
 
-# vcpkg
-vcpkg_installed/
+# OS
+.DS_Store
+Thumbs.db
 
-# debug information files
-*.dwo
+# TypeScript
+*.tsbuildinfo
 
-# test output & cache
-Testing/
-.cache/
+# Prisma — generated client output, when configured outside node_modules
+/prisma/generated/
+
+# Local scratch files
+/_smoke.ts
+/_shot*.mjs

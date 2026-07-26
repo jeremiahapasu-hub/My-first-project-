@@ -1,0 +1,205 @@
+// Pocket Signal Lab — data model
+//
+// Everything is scoped to a User. There is no ingestion path in this schema that
+// reaches into a broker account: rows arrive only through ImportBatch, which is
+// created from a file the user uploaded or text they pasted.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN // manages users, sees every scope
+  ANALYST // full read/write on their own data
+  VIEWER // read-only on their own data
+}
+
+enum Direction {
+  BUY
+  SELL
+}
+
+enum SignalResult {
+  WIN
+  LOSS
+  DRAW
+  PENDING
+}
+
+enum Sentiment {
+  BULLISH
+  BEARISH
+  NEUTRAL
+}
+
+enum ImportKind {
+  SIGNALS
+  CHAT
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         Role     @default(ANALYST)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  signals   Signal[]
+  messages  ChatMessage[]
+  batches   ImportBatch[]
+  providers Provider[]
+  reports   InsightReport[]
+  auditLogs AuditLog[]
+
+  @@map("users")
+}
+
+/// A named source of signals — a channel, a room, a person. Free-form on purpose:
+/// the app never assumes a provider maps to anything on the broker's side.
+model Provider {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  notes     String?
+  createdAt DateTime @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  signals Signal[]
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("providers")
+}
+
+model ImportBatch {
+  id            String     @id @default(cuid())
+  userId        String
+  kind          ImportKind
+  filename      String
+  /// Rows found in the upload, before validation.
+  rowCount      Int        @default(0)
+  acceptedCount Int        @default(0)
+  rejectedCount Int        @default(0)
+  /// Per-row rejection reasons, kept so an import can be audited after the fact.
+  errors        Json?
+  createdAt     DateTime   @default(now())
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  signals  Signal[]
+  messages ChatMessage[]
+
+  @@index([userId, createdAt])
+  @@map("import_batches")
+}
+
+model Signal {
+  id         String  @id @default(cuid())
+  userId     String
+  providerId String?
+  batchId    String?
+
+  asset     String
+  direction Direction
+  /// When the trade was meant to be opened.
+  entryAt   DateTime
+  /// When it settles. Derived from timeframeSec if the source only gave a duration.
+  expiresAt DateTime
+  /// Expiry length in seconds — the "timeframe" in Pocket Option vocabulary.
+  timeframeSec Int
+
+  result SignalResult @default(PENDING)
+  /// Stake and payout are only set when the user's export actually carries them.
+  stake     Float?
+  payout    Float?
+  /// Realised profit/loss for the trade, in account currency.
+  pnl       Float?
+  /// Provider-stated confidence, 0..1, when the feed includes one.
+  confidence Float?
+
+  /// Original line from the import, retained for traceability.
+  rawText   String?
+  createdAt DateTime @default(now())
+
+  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider Provider?    @relation(fields: [providerId], references: [id], onDelete: SetNull)
+  batch    ImportBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+
+  @@index([userId, entryAt])
+  @@index([userId, asset])
+  @@index([userId, result])
+  @@index([providerId])
+  @@map("signals")
+}
+
+model ChatMessage {
+  id      String  @id @default(cuid())
+  userId  String
+  batchId String?
+
+  channel  String
+  author   String
+  content  String
+  postedAt DateTime
+
+  sentiment Sentiment @default(NEUTRAL)
+  /// Normalised polarity in [-1, 1]; the enum above is a bucketing of this.
+  sentimentScore Float  @default(0)
+  /// Tickers/pairs detected in the message body.
+  assets         String[] @default([])
+  /// Strategy vocabulary detected in the message body.
+  strategies     String[] @default([])
+
+  isSpam      Boolean @default(false)
+  spamReason  String?
+  isDuplicate Boolean @default(false)
+  /// Hash of the normalised body, used for near-duplicate grouping.
+  contentHash String
+
+  createdAt DateTime @default(now())
+
+  user  User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  batch ImportBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+
+  @@index([userId, postedAt])
+  @@index([userId, sentiment])
+  @@index([userId, contentHash])
+  @@map("chat_messages")
+}
+
+/// A frozen snapshot of an AI/heuristic analysis run, so a report can be re-opened
+/// exactly as it was generated rather than silently recomputed.
+model InsightReport {
+  id          String   @id @default(cuid())
+  userId      String
+  generatedAt DateTime @default(now())
+  /// The filter set the report was generated against.
+  scope       Json
+  payload     Json
+  /// "heuristic" or the OpenAI model id, so readers know what produced the prose.
+  engine      String   @default("heuristic")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, generatedAt])
+  @@map("insight_reports")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  meta      Json?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@map("audit_logs")
+}
