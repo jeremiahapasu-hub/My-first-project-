@@ -24,15 +24,16 @@ The app is a standard Next.js App Router project and deploys as-is.
 
 1. Import the repository in Vercel.
 2. Add the environment variables from the checklist above.
-3. Set the build command to:
+3. Deploy.
 
-   ```
-   prisma generate && prisma migrate deploy && next build
-   ```
+No build-command configuration is needed: Vercel runs the `vercel-build`
+script when one exists, and this repo's runs
+`prisma generate && prisma migrate deploy && next build`. `migrate deploy`
+applies pending migrations without prompting, so the schema is created on the
+first deploy.
 
-   `migrate deploy` applies pending migrations without prompting.
-
-4. Deploy.
+(`npm run build` stays migration-free for local and Docker builds, where the
+database may not be reachable at build time.)
 
 **Database.** Vercel's runtime is serverless, so use a Postgres provider that
 handles pooled connections — Neon, Supabase, or PlanetScale-style poolers. Point
