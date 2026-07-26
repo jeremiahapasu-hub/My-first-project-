@@ -89,6 +89,33 @@ directly rather than round-tripping through HTTP.
 
 ---
 
+## Deploy
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fjeremiahapasu-hub%2FMy-first-project-&env=DATABASE_URL,AUTH_SECRET,NEXT_PUBLIC_APP_URL&envDescription=A%20pooled%20Postgres%20connection%20string%2C%20a%2032%2B%20character%20random%20secret%2C%20and%20your%20app%20URL&envLink=https%3A%2F%2Fgithub.com%2Fjeremiahapasu-hub%2FMy-first-project-%2Fblob%2Fmain%2Fdocs%2FDEPLOYMENT.md&project-name=pocket-signal-lab&repository-name=pocket-signal-lab)
+
+You will be asked for three values:
+
+| Variable              | Where it comes from                                                     |
+| --------------------- | ----------------------------------------------------------------------- |
+| `DATABASE_URL`        | A Postgres database — [Neon](https://neon.tech) has a free tier. Use the **pooled** string (hostname contains `-pooler`); a direct connection exhausts the limit under serverless load. |
+| `AUTH_SECRET`         | 32+ random characters: `openssl rand -base64 48`                         |
+| `NEXT_PUBLIC_APP_URL` | Your deployed URL, e.g. `https://your-app.vercel.app`                    |
+
+The schema is created automatically on first deploy — Vercel runs the
+`vercel-build` script, which applies migrations before building.
+
+Afterwards, visit `/register`. **The first account created becomes `ADMIN`**, so
+no default credentials ever ship. Then import a file from `samples/` — or your
+own export — through the Import page.
+
+> Deploying builds the repository's default branch. Make sure your code is
+> merged into it first, or point Vercel at the branch you want.
+
+Do **not** run `npm run db:seed` against a production deployment; it creates
+accounts whose passwords are published in this README.
+
+---
+
 ## Quick start
 
 Requires Node 20+ and PostgreSQL 16+.
@@ -140,6 +167,12 @@ Full instructions, including the production path, are in
 ---
 
 ## Sample dataset
+
+> **The sample data is synthetic.** It is produced by a seeded random number
+> generator in `scripts/generate-samples.ts` — it is not market history, and the
+> assets, providers and win rates in it were invented to exercise the charts.
+> Nothing derived from it says anything about any real instrument. Replace it
+> with your own export before drawing any conclusion.
 
 `npm run samples` writes four files to `samples/`, generated from a fixed seed so
 every checkout gets identical data:
