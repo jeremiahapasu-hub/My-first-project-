@@ -8,6 +8,14 @@ narrative findings, then exports the lot to CSV, Excel or PDF.
 
 ![Dashboard](docs/images/dashboard.png)
 
+**[▶ Open the live demo snapshot](https://claude.ai/code/artifact/2ccf7aef-5fa5-40b5-9b5f-2b7cfec561f6)**
+
+A browsable snapshot of the dashboard rendered from a seeded run — every figure,
+chart and finding on it is genuine computed output, not mock data. It is a static
+page, so sign-in, filtering, import and export are not interactive there; those
+need the app running. Regenerate it any time with `npm run demo` (see
+[Static demo snapshot](#static-demo-snapshot)).
+
 ---
 
 ## What this does and does not do
@@ -122,6 +130,7 @@ Full instructions, including the production path, are in
 | `npm start`          | Serve the production build                      |
 | `npm run typecheck`  | `tsc --noEmit`                                  |
 | `npm run samples`    | Regenerate `samples/` (deterministic)           |
+| `npm run demo`       | Build `demo.html` from a running instance       |
 | `npm run db:migrate` | Create and apply a migration                    |
 | `npm run db:deploy`  | Apply migrations without prompting (production) |
 | `npm run db:seed`    | Seed demo users and import the sample dataset   |
@@ -151,6 +160,38 @@ sample data rather than only in theory.
 
 The seed imports these through the real import service, so a broken parser fails
 the seed instead of the two drifting apart.
+
+---
+
+## Static demo snapshot
+
+The app needs a Node server and PostgreSQL, so it cannot be hosted as a static
+page. `scripts/build-demo.mjs` bridges that: it pulls the four analytics
+endpoints from a running instance and bakes the results into a single
+self-contained HTML file with hand-written SVG charts.
+
+```bash
+npm run dev      # in one terminal
+npm run demo     # in another — writes demo.html
+```
+
+Point it somewhere else, or rebuild from saved JSON:
+
+```bash
+node scripts/build-demo.mjs https://analytics.example.com out.html
+node scripts/build-demo.mjs ./saved-json out.html
+```
+
+It signs in with the seeded analyst credentials, overridable via
+`SEED_ANALYST_EMAIL` and `SEED_ANALYST_PASSWORD`.
+
+The output carries real computed figures, not mock data — but it is a snapshot,
+and the page says so in a banner. Sign-in, filtering, import and CSV/Excel/PDF
+export are live server features and are inert in the static file.
+
+The hosted copy linked at the top of this README is private to its owner until
+shared. If you need a link others can open, generate your own `demo.html` and
+host it anywhere that serves static files.
 
 ---
 

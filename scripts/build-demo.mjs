@@ -8,20 +8,87 @@
  *
  * It is a snapshot, not the app: no auth, no import, no filtering, no export.
  *
- * Usage:  node scripts/build-demo.mjs <data-dir> <out.html>
+ * Usage:
+ *   npm run demo                              against a dev server on :3000
+ *   node scripts/build-demo.mjs <url> [out]   against any running instance
+ *   node scripts/build-demo.mjs <dir> [out]   from previously-saved JSON
+ *
+ * When given a URL it signs in with the seeded analyst credentials and pulls
+ * the four analytics endpoints itself, so producing the page is one command.
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-const [dataDir, outPath] = process.argv.slice(2);
+const source = process.argv[2] ?? "http://localhost:3000";
+const outPath = process.argv[3] ?? "demo.html";
 
-const read = (name) => JSON.parse(readFileSync(join(dataDir, name), "utf8"));
+const ENDPOINTS = {
+  overview: "/api/analytics/overview",
+  heatmap: "/api/analytics/heatmap",
+  chat: "/api/chat/analysis",
+  insights: "/api/insights",
+};
 
-const overview = read("overview.json");
-const heatmap = read("heatmap.json");
-const chat = read("chat.json");
-const insights = read("insights.json");
+/** Signs in, then pulls every endpoint with the returned session cookie. */
+async function fetchFromServer(baseUrl) {
+  const email = process.env.SEED_ANALYST_EMAIL ?? "analyst@example.com";
+  const password = process.env.SEED_ANALYST_PASSWORD ?? "analyst12345";
+
+  const login = await fetch(new URL("/api/auth/login", baseUrl), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  }).catch(() => null);
+
+  if (!login) {
+    throw new Error(
+      `Could not reach ${baseUrl}. Start the app with \`npm run dev\` first.`,
+    );
+  }
+
+  if (!login.ok) {
+    throw new Error(
+      `Sign-in failed as ${email} (HTTP ${login.status}). ` +
+        `Run \`npm run db:seed\`, or set SEED_ANALYST_EMAIL / SEED_ANALYST_PASSWORD.`,
+    );
+  }
+
+  // `fetch` does not keep a cookie jar, so the session is threaded manually.
+  const cookie = (login.headers.getSetCookie?.() ?? [])
+    .map((entry) => entry.split(";")[0])
+    .join("; ");
+
+  const result = {};
+
+  for (const [name, path] of Object.entries(ENDPOINTS)) {
+    const response = await fetch(new URL(path, baseUrl), { headers: { cookie } });
+
+    if (!response.ok) {
+      throw new Error(`GET ${path} returned HTTP ${response.status}`);
+    }
+
+    result[name] = await response.json();
+  }
+
+  return result;
+}
+
+function readFromDir(dir) {
+  const read = (name) => JSON.parse(readFileSync(join(dir, `${name}.json`), "utf8"));
+  return {
+    overview: read("overview"),
+    heatmap: read("heatmap"),
+    chat: read("chat"),
+    insights: read("insights"),
+  };
+}
+
+const data = /^https?:\/\//.test(source)
+  ? await fetchFromServer(source)
+  : readFromDir(source);
+
+const { overview, heatmap, chat, insights } = data;
 
 const { stats } = overview;
 
